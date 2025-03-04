@@ -91,19 +91,8 @@ if i > 0 and i % 500 == 0 and updates_pipe:
     updates_pipe = r.pipeline(transaction=False)
 ```
 
-### 6. Error Handling with Fallback
 
-We've implemented a fallback mechanism that switches to individual operations if pipeline operations fail:
-
-```python
-try:
-    # Pipeline operations
-except redis.RedisError:
-    # Fall back to individual operations
-    _fallback_to_individual_operations(r, response, expiry_seconds)
-```
-
-### 7. Performance Metrics
+### 6. Performance Metrics
 
 We now track and report on:
 - Total processing time

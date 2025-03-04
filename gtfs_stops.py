@@ -1,19 +1,41 @@
 from functions import fetch_and_process_trip_updates
-from prefect import flow, task
+from loguru import logger
+import pytz
+
 import redis
 import json
 from datetime import timedelta
 import asyncio
 import time
 
+# Configure Loguru with Brisbane timezone and 12-hour time format
+logger.remove()  # Remove default handler
+logger.add(
+    "gtfs_stops.log", 
+    rotation="10 MB", 
+    retention="1 week", 
+    level="INFO",
+    format="<green>{time:YYYY-MM-DD hh:mm:ss A}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    enqueue=True,
+    backtrace=True,
+    diagnose=True
+)
 
-@task(name="Fetch GTFS stop updates", log_prints=True)
+# Also add console output with the same format
+logger.add(
+    lambda msg: print(msg, end=""),
+    format="<green>{time:YYYY-MM-DD hh:mm:ss A}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    colorize=True,
+    level="INFO"
+)
+
+
 async def fetch_gtfs_stops_task():
     # Add async keyword and use await since fetch_and_process_trip_updates is an async function
     response = await fetch_and_process_trip_updates()
     return response
 
-@task(name="Upload GTFS stops to redis", log_prints=True, cache_policy=None, retries=3, retry_delay_seconds=5)  # Add retry capabilities
+
 def upload_gtfs_stops_to_redis_task(response):
     """ Upload data to redis
     
@@ -23,7 +45,7 @@ def upload_gtfs_stops_to_redis_task(response):
     3. If stop_id/stop_sequence exists, update the departure_delay
     4. Set data expiry to 36 hours
     """
-    print("Connecting to Redis...")
+    logger.info("Connecting to Redis...")
     start_time = time.time()
     
     # Connection pool settings
@@ -43,23 +65,23 @@ def upload_gtfs_stops_to_redis_task(response):
         # Test the connection
         ping_response = r.ping()
         if ping_response:
-            print(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}:{r.connection_pool.connection_kwargs['port']}")
-            print(f"Redis server info: {r.info('server')['redis_version']}")
-            print(f"Current database size: {r.dbsize()} keys")
+            logger.info(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}:{r.connection_pool.connection_kwargs['port']}")
+            logger.info(f"Redis server info: {r.info('server')['redis_version']}")
+            logger.info(f"Current database size: {r.dbsize()} keys")
         else:
-            print("Warning: Redis connection established but ping test failed")
+            logger.warning("Warning: Redis connection established but ping test failed")
     except redis.ConnectionError as e:
-        print(f"Error connecting to Redis: {e}")
+        logger.error(f"Error connecting to Redis: {e}")
         raise
     except Exception as e:
-        print(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
+        logger.error(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
         raise
     
     # Set expiry time (36 hours in seconds)
     expiry_seconds = int(timedelta(hours=36).total_seconds())
     
     # Create lists to store keys, values, and expiry operations for batch processing
-    print(f"Processing {len(response)} trips for batch upload...")
+    logger.info(f"Processing {len(response)} trips for batch upload...")
     
     # First, fetch all existing keys in one batch operation
     trip_keys = [f"gtfs:{trip['trip_id']}:{trip['route_id']}" for trip in response]
@@ -81,7 +103,7 @@ def upload_gtfs_stops_to_redis_task(response):
         
         # Count how many existing keys we need to fetch
         existing_keys_count = sum(1 for exists in key_exists.values() if exists)
-        print(f"Found {existing_keys_count} existing keys that need to be updated")
+        logger.info(f"Found {existing_keys_count} existing keys that need to be updated")
         
         for key, exists in key_exists.items():
             if exists:
@@ -104,7 +126,7 @@ def upload_gtfs_stops_to_redis_task(response):
             # Periodically execute the pipeline to avoid large memory usage
             # Flush every 1000 operations (500 trips)
             if i > 0 and i % 500 == 0 and updates_pipe:
-                print(f"Executing intermediate batch at trip {i}...")
+                logger.info(f"Executing intermediate batch at trip {i}...")
                 updates_pipe.execute()
                 updates_pipe = r.pipeline(transaction=False)
             
@@ -151,37 +173,39 @@ def upload_gtfs_stops_to_redis_task(response):
         
         # Execute all remaining updates in a single batch
         if updates_pipe:
-            print(f"Executing final batch operations: {update_count} updates and {create_count} new entries...")
+            logger.info(f"Executing final batch operations: {update_count} updates and {create_count} new entries...")
             updates_pipe.execute()
         
         end_time = time.time()
         elapsed_time = end_time - start_time
         ops_per_second = len(response) / elapsed_time if elapsed_time > 0 else 0
         
-        print(f"Successfully processed {len(response)} trips to Redis using batch operations")
-        print(f"  - Updated {update_count} existing entries")
-        print(f"  - Created {create_count} new entries")
-        print(f"  - All keys set to expire in {expiry_seconds} seconds (36 hours)")
-        print(f"  - Total time: {elapsed_time:.2f} seconds ({ops_per_second:.2f} operations/second)")
+        logger.success(f"Successfully processed {len(response)} trips to Redis using batch operations")
+        logger.info(f"  - Updated {update_count} existing entries")
+        logger.info(f"  - Created {create_count} new entries")
+        logger.info(f"  - All keys set to expire in {expiry_seconds} seconds (36 hours)")
+        logger.info(f"  - Total time: {elapsed_time:.2f} seconds ({ops_per_second:.2f} operations/second)")
         
     except redis.RedisError as e:
-        print(f"Redis error during batch operation: {e}")
+        logger.error(f"Redis error during batch operation: {e}")
         raise
     except Exception as e:
-        print(f"Unexpected error during batch operation: {type(e).__name__}: {e}")
+        logger.error(f"Unexpected error during batch operation: {type(e).__name__}: {e}")
         raise
     finally:
         # Clean up the connection pool if needed
         pass
 
 
-@flow(name="Fetch GTFS Stops Flow", log_prints=True)
 async def fetch_gtfs_stops_flow():
     # Make the flow async too
+    logger.info("Starting GTFS stops flow")
     response = await fetch_gtfs_stops_task()
     upload_gtfs_stops_to_redis_task(response)
+    logger.info("GTFS stops flow completed")
 
 
 if __name__ == "__main__":
     # Run the async flow with asyncio
+    logger.info("Starting GTFS stops etl update")
     asyncio.run(fetch_gtfs_stops_flow())

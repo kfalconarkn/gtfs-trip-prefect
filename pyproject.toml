@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.11.13",
     "gtfs-realtime-bindings>=1.0.0",
     "jsonpatch>=1.33",
+    "loguru>=0.7.3",
     "pandas>=2.2.3",
     "redis>=5.2.1",
 ]
