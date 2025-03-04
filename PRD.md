@@ -51,7 +51,7 @@ JSON structure is uploaded to redis.
 Upload rules:
 
 1. Each combo of trip_id and route_id is unique and child stops data should be appeneded and or updated to that trip_id/route_id. when the gtfs api data is fetched and the combo of stop_id, stop dequence is not present in the redis db, then it should be appeneded to that trip_id. If the stop_id/stop equence exists then the departure_delay data for that stop_id should be updated. 
-2. The data expirary that is uploaded should be 36 hours. 
+2. The data expirary that is uploaded should be 24 hours. 
 
 Connection exmaple:
 

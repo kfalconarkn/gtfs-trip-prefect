@@ -55,8 +55,7 @@ def upload_gtfs_stops_to_redis_task(response):
         # Test the connection
         ping_response = r.ping()
         if ping_response:
-            logger.info(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}:{r.connection_pool.connection_kwargs['port']}")
-            logger.info(f"Redis server info: {r.info('server')['redis_version']}")
+            logger.info(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}")
             logger.info(f"Current database size: {r.dbsize()} keys")
         else:
             logger.warning("Warning: Redis connection established but ping test failed")
@@ -67,8 +66,8 @@ def upload_gtfs_stops_to_redis_task(response):
         logger.error(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
         raise
     
-    # Set expiry time (36 hours in seconds)
-    expiry_seconds = int(timedelta(hours=36).total_seconds())
+    # Set expiry time (24 hours in seconds)
+    expiry_seconds = int(timedelta(hours=24).total_seconds())
     
     # Create lists to store keys, values, and expiry operations for batch processing
     logger.info(f"Processing {len(response)} trips for batch upload...")
