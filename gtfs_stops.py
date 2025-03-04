@@ -195,7 +195,27 @@ async def fetch_gtfs_stops_flow():
     logger.info("GTFS stops flow completed")
 
 
+async def scheduled_task():
+    """Run the ETL process every 45 seconds"""
+    while True:
+        start_time = time.time()
+        logger.info("Starting scheduled GTFS stops ETL update")
+        
+        try:
+            await fetch_gtfs_stops_flow()
+            logger.success("ETL process completed successfully")
+        except Exception as e:
+            logger.error(f"Error in ETL process: {type(e).__name__}: {e}")
+        
+        # Calculate time taken and sleep for the remainder of the 45 seconds
+        elapsed_time = time.time() - start_time
+        sleep_time = max(0, 45 - elapsed_time)
+        
+        logger.info(f"ETL process took {elapsed_time:.2f} seconds. Waiting {sleep_time:.2f} seconds until next run.")
+        await asyncio.sleep(sleep_time)
+
+
 if __name__ == "__main__":
-    # Run the async flow with asyncio
-    logger.info("Starting GTFS stops etl update")
-    asyncio.run(fetch_gtfs_stops_flow())
+    # Run the scheduled task with asyncio
+    logger.info("Starting GTFS stops ETL scheduler - running every 45 seconds")
+    asyncio.run(scheduled_task())
