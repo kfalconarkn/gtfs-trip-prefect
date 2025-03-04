@@ -1,0 +1,37 @@
+# prefect.yaml
+name: gtfs-prefect-etl
+prefect-version: 3.0.0
+
+# Since we're using Prefect Managed infrastructure, we don't need these sections
+build: null
+push: null
+
+# For local deployment, we'll use a simpler pull configuration
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: "${PREFECT_WORKING_DIR:-.}"
+
+deployments:
+  - name: gtfs-stops-flow
+    entrypoint: gtfs_stops.py:fetch_gtfs_stops_flow
+    work_pool:
+      name: Main
+    schedule:
+      interval: 360
+    parameters: {}
+    description: "GTFS Stops Flow that fetches and processes GTFS stop updates"
+    tags:
+      - gtfs
+      - etl
+      - main-kinetic
+      - default
+
+jobs:
+  - name: gtfs-stops-job
+    deployment: gtfs-stops-flow
+    infrastructure:
+      type: process
+      env:
+        PREFECT_LOGGING_LEVEL: INFO
+        PREFECT_API_URL: https://api.prefect.cloud/api/accounts/main-kinetic/workspaces/54a82305-16da-45e4-b181-0948b49ce93a
+      requirements_file: requirements.txt  # This ensures dependencies are installed at runtime 
