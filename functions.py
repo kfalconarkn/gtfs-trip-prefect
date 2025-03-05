@@ -2,19 +2,9 @@ import aiohttp
 import pytz
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
-from loguru import logger
-
-# Configure Loguru with Brisbane timezone and 12-hour time format
-logger.remove()  # Remove default handler
-
-# Only add console output with the 12-hour time format
-logger.add(
-    lambda msg: print(msg, end=""),
-    format="<green>{time:YYYY-MM-DD hh:mm:ss A}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    colorize=True,
-    level="INFO"
-)
-
+import logfire
+import os
+logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
 async def fetch_trip_updates():
     """
@@ -29,12 +19,12 @@ async def fetch_trip_updates():
     Raises:
         aiohttp.ClientError: If there's an error in making the HTTP request or receiving the response.
     """
-    logger.info("Fetching trip updates from Translink API...")
+    logfire.info("Fetching trip updates from Translink API...")
     url = "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             data = await response.read()
-            logger.info(f"Received response from API with status: {response.status}")
+            logfire.info(f"Received response from API with status: {response.status}")
             return data
 
 
@@ -95,11 +85,11 @@ async def fetch_and_process_trip_updates():
         This function filters for trips with 'SBL' in their trip_id and uses the
         Brisbane timezone for time conversions.
     """
-    logger.info("=== Starting GTFS data fetch and processing ===")
+    logfire.info("Starting GTFS data fetch and processing")
     content = await fetch_trip_updates()
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(content)
-    logger.info(f"Parsed feed with {len(feed.entity)} entities")
+    logfire.info(f"Parsed feed with {len(feed.entity)} entities")
     
     # Process entities directly instead of creating tasks
     stop_updates = []
@@ -110,11 +100,11 @@ async def fetch_and_process_trip_updates():
             stop_updates.extend(entity_stop_updates)
             sbl_count += 1
     
-    logger.info(f"Processed {sbl_count} SBL trips out of {len(feed.entity)} total entities")
-    logger.info(f"Total stop updates collected: {len(stop_updates)}")
+    logfire.info(f"Processed {sbl_count} SBL trips out of {len(feed.entity)} total entities")
+    logfire.info(f"Total stop updates collected: {len(stop_updates)}")
 
     # Transform the data to group stops by trip_id and route_id
-    logger.info("=== Transforming data to group stops by trip_id and route_id ===")
+    logfire.info("Transforming data to group stops by trip_id and route_id")
     transformed_data = {}
     for update in stop_updates:
         trip_id = update['trip_id']
@@ -138,10 +128,10 @@ async def fetch_and_process_trip_updates():
         
         transformed_data[key]['stops'].append(stop_info)
     
-    logger.info(f"Grouped data into {len(transformed_data)} unique trip_id/route_id combinations")
+    logfire.info(f"Grouped data into {len(transformed_data)} unique trip_id/route_id combinations")
     
     # Filter to include only the minimum stop sequence and the next one for each trip
-    logger.info("=== Filtering to include only min stop sequence and next one ===")
+    logfire.info("Filtering to include only min stop sequence and next one")
     for key in transformed_data:
         trip_id, route_id = key
         stops = transformed_data[key]['stops']
@@ -165,7 +155,7 @@ async def fetch_and_process_trip_updates():
     # Convert the dictionary to a list
     result = list(transformed_data.values())
     
-    logger.success(f"=== Processing complete: {len(result)} trips with filtered stops ===")
+    logfire.info(f"Processing complete: {len(result)} trips with filtered stops")
     return result
 
 
