@@ -7,15 +7,52 @@ import time
 import logfire
 import os
 import sys
+import warnings
 
 # Configure logfire with token from environment variable
+# Note: functions.py also configures logfire, but this is a safeguard
+# to ensure it's configured in this file as well
 logfire_token = os.environ.get("LOGFIRE_TOKEN")
 
 if not logfire_token:
-    print("ERROR: LOGFIRE_TOKEN environment variable is not set", file=sys.stderr)
+    print("ERROR: LOGFIRE_TOKEN environment variable is not set in gtfs_stops.py", file=sys.stderr)
     print("Please set it using: export LOGFIRE_TOKEN=your_token_here", file=sys.stderr)
+    # Continue without Logfire
+    print("WARNING: Continuing without Logfire logging", file=sys.stderr)
+    # Define a dummy logfire.info function that just prints to console
+    def dummy_log(*args, **kwargs):
+        print(*args)
+    # Only set these if they haven't been set already by functions.py
+    if not hasattr(logfire, 'dummy_configured'):
+        logfire.info = dummy_log
+        logfire.error = dummy_log
+        logfire.warning = dummy_log
+        logfire.dummy_configured = True
 else:
-    logfire.configure(token=logfire_token)
+    # Only configure if not already configured by functions.py
+    if not hasattr(logfire, 'configured'):
+        print(f"Configuring Logfire in gtfs_stops.py with token: {logfire_token[:5]}...{logfire_token[-5:]}")
+        try:
+            # Capture warnings to detect authentication issues
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                logfire.configure(token=logfire_token)
+                logfire.configured = True
+                if w:
+                    for warning in w:
+                        print(f"WARNING: {warning.message}", file=sys.stderr)
+                    print("WARNING: Logfire configuration generated warnings. Token may be invalid.", file=sys.stderr)
+                    print("Please check your LOGFIRE_TOKEN value and ensure it's valid.", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Failed to configure Logfire in gtfs_stops.py: {e}", file=sys.stderr)
+            # Define a dummy logfire.info function that just prints to console
+            if not hasattr(logfire, 'dummy_configured'):
+                def dummy_log(*args, **kwargs):
+                    print(*args)
+                logfire.info = dummy_log
+                logfire.error = dummy_log
+                logfire.warning = dummy_log
+                logfire.dummy_configured = True
 
 async def fetch_gtfs_stops_task():
     # Add async keyword and use await since fetch_and_process_trip_updates is an async function
