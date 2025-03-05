@@ -3,9 +3,6 @@ import pytz
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 import logfire
-import os
-import sys
-import warnings
 
 # Configure logfire with token from environment variable
 logfire.configure(token="pylf_v1_us_r8nwb7ycg8bSxsSnjktwMJ1cV3s0sLlwTvCNvdNTpm8ngrep")

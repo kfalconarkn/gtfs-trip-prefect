@@ -9,7 +9,6 @@ export REDIS_PASSWORD="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU"
 
 # Print environment variables for debugging
 echo "Environment variables:"
-echo "LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:0:5}...${LOGFIRE_TOKEN: -5}"
 echo "REDIS_HOST: $REDIS_HOST"
 echo "REDIS_PORT: $REDIS_PORT"
 echo "REDIS_PASSWORD: ${REDIS_PASSWORD:0:5}...${REDIS_PASSWORD: -5}"
