@@ -3,8 +3,8 @@ import pytz
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 import logfire
-import os
-logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
+
+
 
 async def fetch_trip_updates():
     """

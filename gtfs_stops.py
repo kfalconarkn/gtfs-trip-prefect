@@ -10,6 +10,7 @@ import sys
 
 # Configure logfire with token from environment variable
 logfire_token = os.environ.get("LOGFIRE_TOKEN")
+
 if not logfire_token:
     print("ERROR: LOGFIRE_TOKEN environment variable is not set", file=sys.stderr)
     print("Please set it using: export LOGFIRE_TOKEN=your_token_here", file=sys.stderr)
