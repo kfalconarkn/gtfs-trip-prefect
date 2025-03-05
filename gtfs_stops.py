@@ -6,12 +6,15 @@ import asyncio
 import time
 import logfire
 import os
-from dotenv import load_dotenv
+import sys
 
-# Load environment variables from .env file
-load_dotenv()
-
-logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
+# Configure logfire with token from environment variable
+logfire_token = os.environ.get("LOGFIRE_TOKEN")
+if not logfire_token:
+    print("ERROR: LOGFIRE_TOKEN environment variable is not set", file=sys.stderr)
+    print("Please set it using: export LOGFIRE_TOKEN=your_token_here", file=sys.stderr)
+else:
+    logfire.configure(token=logfire_token)
 
 async def fetch_gtfs_stops_task():
     # Add async keyword and use await since fetch_and_process_trip_updates is an async function
@@ -33,15 +36,28 @@ def upload_gtfs_stops_to_redis_task(response):
     
     # Connection pool settings
     try:
-        redis_host = os.getenv("REDIS_HOST")
-        redis_port = int(os.getenv("REDIS_PORT", 11529))
-        redis_password = os.getenv("REDIS_PASSWORD")
+        redis_host = os.environ.get("REDIS_HOST")
+        redis_port_str = os.environ.get("REDIS_PORT", "11529")
+        redis_password = os.environ.get("REDIS_PASSWORD")
         
+        # Convert port to integer with error handling
+        try:
+            redis_port = int(redis_port_str)
+        except (ValueError, TypeError):
+            print(f"ERROR: Invalid REDIS_PORT value: {redis_port_str}", file=sys.stderr)
+            redis_port = 11529  # Default port
+            
         # Debug information
-        logfire.info(f"Redis connection details - Host: {redis_host}, Port: {redis_port}")
-        if not redis_host or not redis_password:
-            logfire.error("Missing Redis connection details. Check your .env file.")
-            raise ValueError("Missing Redis connection details")
+        print(f"Redis connection details - Host: {redis_host}, Port: {redis_port}")
+        if not redis_host:
+            print("ERROR: REDIS_HOST environment variable is not set", file=sys.stderr)
+            print("Please set it using: export REDIS_HOST=your_redis_host", file=sys.stderr)
+            raise ValueError("Missing REDIS_HOST environment variable")
+            
+        if not redis_password:
+            print("ERROR: REDIS_PASSWORD environment variable is not set", file=sys.stderr)
+            print("Please set it using: export REDIS_PASSWORD=your_redis_password", file=sys.stderr)
+            raise ValueError("Missing REDIS_PASSWORD environment variable")
             
         pool = redis.ConnectionPool(
             host=redis_host,
