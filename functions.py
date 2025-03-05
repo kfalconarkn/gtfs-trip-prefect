@@ -8,42 +8,7 @@ import sys
 import warnings
 
 # Configure logfire with token from environment variable
-logfire_token = os.environ.get("LOGFIRE_TOKEN")
-if not logfire_token:
-    print("ERROR: LOGFIRE_TOKEN environment variable is not set in functions.py", file=sys.stderr)
-    # Define dummy logging functions to prevent errors
-    if not hasattr(logfire, 'dummy_configured'):
-        def dummy_log(*args, **kwargs):
-            print(*args)
-        logfire.info = dummy_log
-        logfire.error = dummy_log
-        logfire.warning = dummy_log
-        logfire.dummy_configured = True
-else:
-    # Only configure if not already configured
-    if not hasattr(logfire, 'configured'):
-        try:
-            # Capture warnings to detect authentication issues
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                print(f"Configuring Logfire in functions.py with token: {logfire_token[:5]}...{logfire_token[-5:]}")
-                logfire.configure(token=logfire_token)
-                logfire.configured = True
-                if w:
-                    for warning in w:
-                        print(f"WARNING: {warning.message}", file=sys.stderr)
-                    print("WARNING: Logfire configuration generated warnings in functions.py. Token may be invalid.", file=sys.stderr)
-        except Exception as e:
-            print(f"ERROR: Failed to configure Logfire in functions.py: {e}", file=sys.stderr)
-            # Define dummy logging functions to prevent errors
-            if not hasattr(logfire, 'dummy_configured'):
-                def dummy_log(*args, **kwargs):
-                    print(*args)
-                logfire.info = dummy_log
-                logfire.error = dummy_log
-                logfire.warning = dummy_log
-                logfire.dummy_configured = True
-
+logfire.configure(token="pylf_v1_us_r8nwb7ycg8bSxsSnjktwMJ1cV3s0sLlwTvCNvdNTpm8ngrep")
 async def fetch_trip_updates():
     """
     Asynchronously fetches GTFS real-time trip updates from the Translink API.

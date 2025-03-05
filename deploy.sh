@@ -1,9 +1,6 @@
 #!/bin/bash
 
 # Set environment variables
-# NOTE: You need to replace this with a valid Logfire token
-# The current token is causing 401 errors
-export LOGFIRE_TOKEN="pylf_v1_us_r8nwb7ycg8bSxsSnjktwMJ1cV3s0sLlwTvCNvdNTpm8ngrep"
 
 # Redis connection details
 export REDIS_HOST="redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com"
