@@ -29,11 +29,11 @@ def upload_gtfs_stops_to_redis_task(response):
     
     # Connection pool settings
     pool = redis.ConnectionPool(
-        host='redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com',
-        port=11529,
+        host=os.getenv("REDIS_HOST"),
+        port=os.getenv("REDIS_PORT"),
         decode_responses=True,
         username="default",
-        password="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU",
+        password=os.getenv("REDIS_PASSWORD"),
         max_connections=10,  # Adjust based on expected concurrency
         health_check_interval=30  # Check connection health every 30 seconds
     )
