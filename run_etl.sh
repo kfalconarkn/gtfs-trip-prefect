@@ -7,7 +7,7 @@ export REDIS_PORT="11529"
 export REDIS_PASSWORD="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU"
 
 # Run the Python script
-python gtfs_stops.py
+nohup python3 gtfs_stops.py &
 
 # Or if you're using a virtual environment
 # /path/to/your/venv/bin/python gtfs_stops.py 
