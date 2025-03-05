@@ -6,8 +6,8 @@ export REDIS_HOST="redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com"
 export REDIS_PORT="11529"
 export REDIS_PASSWORD="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU"
 
-# Run the Python script
-nohup python3 gtfs_stops.py &
+# Activate virtual environment
+source env/bin/activate
 
-# Or if you're using a virtual environment
-# /path/to/your/venv/bin/python gtfs_stops.py 
+# Run the Python script
+nohup python gtfs_stops.py &
