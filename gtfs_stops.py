@@ -6,6 +6,10 @@ import asyncio
 import time
 import logfire
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
@@ -28,20 +32,29 @@ def upload_gtfs_stops_to_redis_task(response):
     start_time = time.time()
     
     # Connection pool settings
-    pool = redis.ConnectionPool(
-        host=os.getenv("REDIS_HOST"),
-        port=os.getenv("REDIS_PORT"),
-        decode_responses=True,
-        username="default",
-        password=os.getenv("REDIS_PASSWORD"),
-        max_connections=10,  # Adjust based on expected concurrency
-        health_check_interval=30  # Check connection health every 30 seconds
-    )
-    
     try:
-        r = redis.Redis(connection_pool=pool)
+        redis_host = os.getenv("REDIS_HOST")
+        redis_port = int(os.getenv("REDIS_PORT", 11529))
+        redis_password = os.getenv("REDIS_PASSWORD")
+        
+        # Debug information
+        logfire.info(f"Redis connection details - Host: {redis_host}, Port: {redis_port}")
+        if not redis_host or not redis_password:
+            logfire.error("Missing Redis connection details. Check your .env file.")
+            raise ValueError("Missing Redis connection details")
+            
+        pool = redis.ConnectionPool(
+            host=redis_host,
+            port=redis_port,
+            decode_responses=True,
+            username="default",
+            password=redis_password,
+            max_connections=10,  # Adjust based on expected concurrency
+            health_check_interval=30  # Check connection health every 30 seconds
+        )
         
         # Test the connection
+        r = redis.Redis(connection_pool=pool)
         ping_response = r.ping()
         if ping_response:
             logfire.info(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}")
