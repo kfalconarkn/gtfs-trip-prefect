@@ -4,8 +4,6 @@ from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 import logfire
 
-# Configure logfire with token from environment variable
-logfire.configure(token="pylf_v1_us_r8nwb7ycg8bSxsSnjktwMJ1cV3s0sLlwTvCNvdNTpm8ngrep")
 async def fetch_trip_updates():
     """
     Asynchronously fetches GTFS real-time trip updates from the Translink API.
