@@ -7,19 +7,8 @@ to redis cloud using prefect cloud deployment.
 
 ## Tech stack
 - Python
-- Prefect 
 - Redis
 
-## prefect details
-
-Owning Account
-main-kinetic
-Handle
-default
-Description
-None
-Workspace ID
-54a82305-16da-45e4-b181-0948b49ce93a
 
 
 ## API 
@@ -68,9 +57,16 @@ r = redis.Redis(
     password="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU",
 )
 
+## Logging
+
+Pydantic lofire will be used to send logging information to the platform for observibility and monitoring. 
 
 ## Data Flow
 
 1. Data is downloaded from GTFS API
 2. Data is transformed to required format
 3. Data is uploaded/appened to redis db.
+
+## Deployment
+Python script will be deployed to github actions. yml file will specify the deployment config
+the github action s will run every 1 min. dependencies will be defined using the requirements.txt file in the root dir. 

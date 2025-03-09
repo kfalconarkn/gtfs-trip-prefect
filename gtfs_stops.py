@@ -6,8 +6,34 @@ import asyncio
 import time
 import logfire
 import os
+import sys
+from dotenv import load_dotenv
 
-logfire.configure(token='pylf_v1_us_8W9RldcQ9cyJV8NkNfRVGmwsHMnzTlBQzDZvfTzn05R5')
+# Load environment variables from .env file if it exists
+# This will not override existing environment variables, so GitHub Actions env vars will take precedence
+load_dotenv()
+
+# Get environment variables with no default values
+# This ensures we don't expose sensitive information in the code
+LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
+REDIS_HOST = os.environ.get('REDIS_HOST')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', '11529'))  # Default port as fallback
+REDIS_USERNAME = os.environ.get('REDIS_USERNAME')
+REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
+REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
+
+# Configure logfire
+if LOGFIRE_TOKEN:
+    logfire.configure(token=LOGFIRE_TOKEN)
+else:
+    logfire.info("LOGFIRE_TOKEN not set, logging may be limited")
+
+# Validate required environment variables
+required_vars = ['REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD']
+missing_vars = [var for var in required_vars if not os.environ.get(var)]
+if missing_vars:
+    logfire.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+    sys.exit(1)
 
 
 async def fetch_gtfs_stops_task():
@@ -23,7 +49,7 @@ def upload_gtfs_stops_to_redis_task(response):
     1. Each trip_id/route_id combo is unique, and child stops data should be appended/updated
     2. If stop_id/stop_sequence doesn't exist, append it
     3. If stop_id/stop_sequence exists, update the departure_delay
-    4. Set data expiry to 36 hours
+    4. Set data expiry to 12 hours (configurable via environment variable)
     """
     logfire.info("Connecting to Redis...")
     start_time = time.time()
@@ -32,11 +58,11 @@ def upload_gtfs_stops_to_redis_task(response):
     try:
             
         pool = redis.ConnectionPool(
-            host="redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com",  # Fixed hostname format
-            port=11529,
+            host=REDIS_HOST,
+            port=REDIS_PORT,
             decode_responses=True,
-            username="default",
-            password="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU",
+            username=REDIS_USERNAME,
+            password=REDIS_PASSWORD,
             max_connections=10,  # Adjust based on expected concurrency
             health_check_interval=30,  # Check connection health every 30 seconds
             socket_timeout=5.0,  # Add timeout for connection attempts
@@ -59,8 +85,8 @@ def upload_gtfs_stops_to_redis_task(response):
         logfire.error(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
         raise
     
-    # Set expiry time (12 hours in seconds)
-    expiry_seconds = int(timedelta(hours=12).total_seconds())
+    # Set expiry time (12 hours in seconds by default, configurable via environment variable)
+    expiry_seconds = int(timedelta(hours=REDIS_EXPIRY_HOURS).total_seconds())
     
     # Create lists to store keys, values, and expiry operations for batch processing
     logfire.info(f"Processing {len(response)} trips for batch upload...")
@@ -165,7 +191,7 @@ def upload_gtfs_stops_to_redis_task(response):
         logfire.info(f"✅ Successfully processed {len(response)} trips to Redis using batch operations")
         logfire.info(f"✅ Updated {update_count} existing entries")
         logfire.info(f"✅ Created {create_count} new entries")
-        logfire.info(f"All keys set to expire in {expiry_seconds} seconds (12 hours)")
+        logfire.info(f"All keys set to expire in {expiry_seconds} seconds ({REDIS_EXPIRY_HOURS} hours)")
         logfire.info(f"Total time: {elapsed_time:.2f} seconds ({ops_per_second:.2f} operations/second)")
         
     except redis.RedisError as e:
@@ -180,34 +206,40 @@ def upload_gtfs_stops_to_redis_task(response):
 
 
 async def fetch_gtfs_stops_flow():
-    # Make the flow async too
+    """Main ETL flow that fetches GTFS data and uploads it to Redis"""
     logfire.info("Starting GTFS stops flow")
-    response = await fetch_gtfs_stops_task()
-    upload_gtfs_stops_to_redis_task(response)
-    logfire.info("GTFS stops flow completed")
+    try:
+        response = await fetch_gtfs_stops_task()
+        upload_gtfs_stops_to_redis_task(response)
+        logfire.info("GTFS stops flow completed successfully")
+        return True
+    except Exception as e:
+        logfire.error(f"Error in GTFS stops flow: {type(e).__name__}: {e}")
+        return False
 
 
-async def scheduled_task():
-    """Run the ETL process every 45 seconds"""
-    while True:
-        start_time = time.time()
-        logfire.info("Starting scheduled GTFS stops ETL update")
-        
-        try:
-            await fetch_gtfs_stops_flow()
+async def main():
+    """Main function to run the ETL process once"""
+    start_time = time.time()
+    logfire.info("Starting GTFS stops ETL process")
+    
+    try:
+        success = await fetch_gtfs_stops_flow()
+        if success:
             logfire.info("ETL process completed successfully")
-        except Exception as e:
-            logfire.error(f"Error in ETL process: {type(e).__name__}: {e}")
-        
-        # Calculate time taken and sleep for the remainder of the 45 seconds
-        elapsed_time = time.time() - start_time
-        sleep_time = max(0, 45 - elapsed_time)
-        
-        logfire.info(f"ETL process took {elapsed_time:.2f} seconds. Waiting {sleep_time:.2f} seconds until next run.")
-        await asyncio.sleep(sleep_time)
+            elapsed_time = time.time() - start_time
+            logfire.info(f"Total execution time: {elapsed_time:.2f} seconds")
+            return 0
+        else:
+            logfire.error("ETL process failed")
+            return 1
+    except Exception as e:
+        logfire.error(f"Unhandled error in ETL process: {type(e).__name__}: {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    # Run the scheduled task with asyncio
-    logfire.info("Starting GTFS stops ETL scheduler - running every 45 seconds")
-    asyncio.run(scheduled_task())
+    # Run the ETL process once and exit
+    logfire.info("Starting GTFS stops ETL process - GitHub Actions compatible version")
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)
