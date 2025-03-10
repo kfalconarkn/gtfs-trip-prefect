@@ -240,6 +240,5 @@ async def main():
 
 if __name__ == "__main__":
     # Run the ETL process once and exit
-    logfire.info("Starting GTFS stops ETL process - GitHub Actions compatible version")
     exit_code = asyncio.run(main())
     sys.exit(exit_code)

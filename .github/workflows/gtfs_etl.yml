@@ -6,7 +6,7 @@ on:
       - main ## added this to invoke new commit
   schedule:
     # Run every 1 minute
-    - cron: '* * * * *'
+    - cron: '*/1 * * * *' # runs every minute
   workflow_dispatch:  # Allow manual triggering
 
 # Add concurrency configuration to cancel in-progress runs
