@@ -1,6 +1,9 @@
 name: GTFS ETL Process
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 1 minute
     - cron: '* * * * *'
