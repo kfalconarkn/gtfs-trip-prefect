@@ -28,10 +28,10 @@ on:
         required: false
         default: ''
 
-# Add concurrency configuration to cancel in-progress runs
+# Modified concurrency configuration to allow multiple runs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.inputs.scheduler_job_id || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   run-etl:
