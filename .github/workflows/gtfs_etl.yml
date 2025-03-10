@@ -4,10 +4,29 @@ on:
   push:
     branches:
       - main ## added this to invoke new commit
-  schedule:
-    # Run every 1 minute
-    - cron: '*/1 * * * *' # runs every minute
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+    # Adding inputs for manual triggering with optional parameters
+    inputs:
+      reason:
+        description: 'Reason for running the workflow'
+        required: false
+        default: 'Scheduled run via Google Cloud Scheduler'
+      debug_mode:
+        description: 'Enable debug mode'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      scheduler_job_id:
+        description: 'Google Cloud Scheduler job ID (for tracking)'
+        required: false
+        default: 'default-scheduler'
+      execution_time:
+        description: 'Scheduled execution time (UTC)'
+        required: false
+        default: ''
 
 # Add concurrency configuration to cancel in-progress runs
 concurrency:
@@ -34,6 +53,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Log workflow trigger information
+        run: |
+          echo "Workflow triggered at: $(date -u)"
+          echo "Trigger reason: ${{ github.event.inputs.reason || 'Push to main branch' }}"
+          echo "Debug mode: ${{ github.event.inputs.debug_mode || 'false' }}"
+          echo "Scheduler job ID: ${{ github.event.inputs.scheduler_job_id || 'N/A' }}"
+          echo "Scheduled execution time: ${{ github.event.inputs.execution_time || 'N/A' }}"
+          echo "GitHub run ID: ${{ github.run_id }}"
+          echo "GitHub run number: ${{ github.run_number }}"
+      
       - name: Run GTFS ETL process
         env:
           LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
@@ -42,6 +71,8 @@ jobs:
           REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_EXPIRY_HOURS: '12'
+          DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
+          SCHEDULER_JOB_ID: ${{ github.event.inputs.scheduler_job_id || 'default-scheduler' }}
         run: |
           python gtfs_stops.py
       
@@ -50,6 +81,8 @@ jobs:
         run: |
           if [ ${{ job.status }} == 'success' ]; then
             echo "ETL process completed successfully"
+            echo "Run duration: ${{ steps.run-etl.outputs.duration || 'N/A' }}"
           else
             echo "ETL process failed"
+            echo "See logs for details"
           fi 
