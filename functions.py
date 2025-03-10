@@ -43,7 +43,8 @@ async def process_entity_trip_updates(entity):
     stop_updates = []
     if entity.HasField('trip_update'):
         trip_id = entity.trip_update.trip.trip_id
-        if 'SBL' not in trip_id:
+        # Check if trip_id contains either 'SBL' or 'SUN'
+        if 'SBL' not in trip_id and 'SUN' not in trip_id:
             return stop_updates
         
         route_id = entity.trip_update.trip.route_id
@@ -80,7 +81,7 @@ async def fetch_and_process_trip_updates():
               and a list of stops with their respective stop_id, departure_delay, and departure_time.
 
     Note:
-        This function filters for trips with 'SBL' in their trip_id and uses the
+        This function filters for trips with either 'SBL' or 'SUN' in their trip_id and uses the
         Brisbane timezone for time conversions.
     """
     logfire.info("Starting GTFS data fetch and processing")
@@ -91,14 +92,14 @@ async def fetch_and_process_trip_updates():
     
     # Process entities directly instead of creating tasks
     stop_updates = []
-    sbl_count = 0
+    filtered_count = 0
     for entity in feed.entity:
         entity_stop_updates = await process_entity_trip_updates(entity)
         if entity_stop_updates:
             stop_updates.extend(entity_stop_updates)
-            sbl_count += 1
+            filtered_count += 1
     
-    logfire.info(f"Processed {sbl_count} SBL trips out of {len(feed.entity)} total entities")
+    logfire.info(f"Processed {filtered_count} SBL/SUN trips out of {len(feed.entity)} total entities")
     logfire.info(f"Total stop updates collected: {len(stop_updates)}")
 
     # Transform the data to group stops by trip_id and route_id
