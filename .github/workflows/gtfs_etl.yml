@@ -28,10 +28,7 @@ on:
         required: false
         default: ''
 
-# Modified concurrency configuration to allow multiple runs
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.scheduler_job_id || github.run_id }}
-  cancel-in-progress: false
+# Removed concurrency configuration entirely to prevent any cancellation issues
 
 jobs:
   run-etl:
@@ -54,6 +51,7 @@ jobs:
           pip install -r requirements.txt
       
       - name: Log workflow trigger information
+        id: log-info
         run: |
           echo "Workflow triggered at: $(date -u)"
           echo "Trigger reason: ${{ github.event.inputs.reason || 'Push to main branch' }}"
@@ -62,8 +60,10 @@ jobs:
           echo "Scheduled execution time: ${{ github.event.inputs.execution_time || 'N/A' }}"
           echo "GitHub run ID: ${{ github.run_id }}"
           echo "GitHub run number: ${{ github.run_number }}"
+          echo "Workflow dispatch event ID: ${{ github.event.id || 'N/A' }}"
       
       - name: Run GTFS ETL process
+        id: run-etl
         env:
           LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
@@ -73,15 +73,20 @@ jobs:
           REDIS_EXPIRY_HOURS: '12'
           DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
           SCHEDULER_JOB_ID: ${{ github.event.inputs.scheduler_job_id || 'default-scheduler' }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
+          start_time=$(date +%s)
           python gtfs_stops.py
+          end_time=$(date +%s)
+          duration=$((end_time - start_time))
+          echo "duration=$duration" >> $GITHUB_OUTPUT
       
       - name: Report job status
         if: always()
         run: |
           if [ ${{ job.status }} == 'success' ]; then
             echo "ETL process completed successfully"
-            echo "Run duration: ${{ steps.run-etl.outputs.duration || 'N/A' }}"
+            echo "Run duration: ${{ steps.run-etl.outputs.duration || 'N/A' }} seconds"
           else
             echo "ETL process failed"
             echo "See logs for details"
