@@ -63,7 +63,7 @@ def upload_gtfs_stops_to_redis_task(response):
             decode_responses=True,
             username=REDIS_USERNAME,
             password=REDIS_PASSWORD,
-            max_connections=10,  # Adjust based on expected concurrency
+            max_connections=5,  # Adjust based on expected concurrency
             health_check_interval=30,  # Check connection health every 30 seconds
             socket_timeout=5.0,  # Add timeout for connection attempts
             socket_connect_timeout=5.0,  # Add timeout for initial connection
