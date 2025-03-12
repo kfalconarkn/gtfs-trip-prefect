@@ -202,7 +202,11 @@ def upload_gtfs_stops_to_redis_task(response):
         raise
     finally:
         # Clean up the connection pool if needed
-        pass
+        try:
+            pool.close()
+            logfire.info("Redis connection pool closed successfully")
+        except Exception as e:
+            logfire.error(f"Error closing Redis connection pool: {e}")
 
 
 async def fetch_gtfs_stops_flow():
