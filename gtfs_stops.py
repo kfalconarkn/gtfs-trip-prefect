@@ -186,6 +186,7 @@ def upload_gtfs_stops_to_redis_task(response):
         elapsed_time = end_time - start_time
         ops_per_second = len(response) / elapsed_time if elapsed_time > 0 else 0
         
+        ##log results
         logfire.info(f"✅ Successfully processed {len(response)} trips to Upstash Redis using batch operations")
         logfire.info(f"✅ Updated {update_count} existing entries")
         logfire.info(f"✅ Created {create_count} new entries")
