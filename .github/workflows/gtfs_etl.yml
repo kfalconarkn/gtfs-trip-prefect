@@ -68,7 +68,6 @@ jobs:
           LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
           MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
-          MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DB_NAME: ${{ secrets.MONGO_DB_NAME || 'gtfs_data' }}
           MONGO_COLLECTION: ${{ secrets.MONGO_COLLECTION || 'trips_stops' }}
           REDIS_EXPIRY_HOURS: '12'

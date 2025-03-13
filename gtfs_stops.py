@@ -18,7 +18,8 @@ load_dotenv()
 LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
 MONGO_USERNAME = os.environ.get('MONGO_USERNAME')
 MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD')
-MONGO_URI = os.environ.get('MONGO_URI', f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@cluster0.dsh19.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+# Construct MongoDB URI from credentials
+MONGO_URI = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@cluster0.dsh19.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 MONGO_DB_NAME = os.environ.get('MONGO_DB_NAME', 'gtfs_data')
 MONGO_COLLECTION = os.environ.get('MONGO_COLLECTION', 'trips_stops')
 REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Keeping this for TTL index in MongoDB
