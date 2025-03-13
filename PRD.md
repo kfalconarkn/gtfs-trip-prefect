@@ -46,6 +46,20 @@ Connection creditials:
 Enpoint: concise-sculpin-61825.upstash.io
 port: 6379
 
+example client connection: 
+
+```python
+import redis
+
+r = redis.Redis(
+  host='concise-sculpin-61825.upstash.io',
+  port=6379,
+  password='********',
+  ssl=True
+)
+```
+
+
 
 ## Logging
 

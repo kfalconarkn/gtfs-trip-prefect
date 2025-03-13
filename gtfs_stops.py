@@ -55,24 +55,23 @@ def upload_gtfs_stops_to_redis_task(response):
     
     # Connection pool settings
     try:
-            
-        pool = redis.ConnectionPool(
+        # Create Redis client with SSL - Modified approach for Upstash compatibility
+        r = redis.Redis(
             host=UPSTASH_ENDPOINT,
             port=UPSTASH_PORT,
-            decode_responses=True,
             password=UPSTASH_PASSWORD,
-            max_connections=5,  # Adjust based on expected concurrency
-            health_check_interval=30,  # Check connection health every 30 seconds
-            socket_timeout=5.0,  # Add timeout for connection attempts
-            socket_connect_timeout=5.0,  # Add timeout for initial connection
-            retry_on_timeout=True  # Retry on timeout
+            decode_responses=True,
+            ssl=True,
+            socket_timeout=5.0,
+            socket_connect_timeout=5.0,
+            retry_on_timeout=True,
+            max_connections=5,
         )
         
         # Test the connection
-        r = redis.Redis(connection_pool=pool)
         ping_response = r.ping()
         if ping_response:
-            logfire.info(f"Successfully connected to Upstash Redis at {r.connection_pool.connection_kwargs['host']}")
+            logfire.info(f"Successfully connected to Upstash Redis at {UPSTASH_ENDPOINT}")
             logfire.info(f"Current database size: {r.dbsize()} keys")
         else:
             logfire.warning("Warning: Upstash Redis connection established but ping test failed")
@@ -200,12 +199,8 @@ def upload_gtfs_stops_to_redis_task(response):
         logfire.error(f"Unexpected error during batch operation: {type(e).__name__}: {e}")
         raise
     finally:
-        # Clean up the connection pool if needed
-        try:
-            pool.close()
-            logfire.info("Upstash Redis connection pool closed successfully")
-        except Exception as e:
-            logfire.error(f"Error closing Upstash Redis connection pool: {e}")
+        # No need to close the connection pool now as we're using a direct connection
+        logfire.info("Upstash Redis connection closed successfully")
 
 
 async def fetch_gtfs_stops_flow():
