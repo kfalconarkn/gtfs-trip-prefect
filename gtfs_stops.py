@@ -1,6 +1,5 @@
 from functions import fetch_and_process_trip_updates
 import pymongo
-import json
 from datetime import timedelta, datetime
 import asyncio
 import time
