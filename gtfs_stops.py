@@ -17,7 +17,7 @@ load_dotenv()
 # This ensures we don't expose sensitive information in the code
 LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
 UPSTASH_ENDPOINT = os.environ.get('UPSTASH_ENDPOINT')
-UPSTASH_PORT = int(os.environ.get('UPSTASH_PORT', '6379'))  # Default port as fallback
+UPSTASH_PORT = int(os.environ.get('UPSTASH_PORT', 6379))  # Default port as fallback
 UPSTASH_PASSWORD = os.environ.get('UPSTASH_PASSWORD')
 REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
 
