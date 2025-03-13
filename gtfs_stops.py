@@ -1,7 +1,7 @@
 from functions import fetch_and_process_trip_updates
-import redis
+import pymongo
 import json
-from datetime import timedelta
+from datetime import timedelta, datetime
 import asyncio
 import time
 import logfire
@@ -16,10 +16,12 @@ load_dotenv()
 # Get environment variables with no default values
 # This ensures we don't expose sensitive information in the code
 LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
-UPSTASH_ENDPOINT = os.environ.get('UPSTASH_ENDPOINT')
-UPSTASH_PORT = int(os.environ.get('UPSTASH_PORT', 6379))  # Default port as fallback
-UPSTASH_PASSWORD = os.environ.get('UPSTASH_PASSWORD')
-REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
+MONGO_USERNAME = os.environ.get('MONGO_USERNAME')
+MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD')
+MONGO_URI = os.environ.get('MONGO_URI', f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@cluster0.dsh19.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_DB_NAME = os.environ.get('MONGO_DB_NAME', 'gtfs_data')
+MONGO_COLLECTION = os.environ.get('MONGO_COLLECTION', 'trips_stops')
+REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Keeping this for TTL index in MongoDB
 
 # Configure logfire
 if LOGFIRE_TOKEN:
@@ -28,7 +30,7 @@ else:
     logfire.info("LOGFIRE_TOKEN not set, logging may be limited")
 
 # Validate required environment variables
-required_vars = ['UPSTASH_ENDPOINT', 'UPSTASH_PASSWORD']
+required_vars = ['MONGO_USERNAME', 'MONGO_PASSWORD']
 missing_vars = [var for var in required_vars if not os.environ.get(var)]
 if missing_vars:
     logfire.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -41,8 +43,8 @@ async def fetch_gtfs_stops_task():
     return response
 
 
-def upload_gtfs_stops_to_redis_task(response):
-    """ Upload data to redis
+def upload_gtfs_stops_to_mongodb_task(response):
+    """ Upload data to MongoDB
     
     This task implements the upload rules specified in the PRD:
     1. Each trip_id/route_id combo is unique, and child stops data should be appended/updated
@@ -50,101 +52,64 @@ def upload_gtfs_stops_to_redis_task(response):
     3. If stop_id/stop_sequence exists, update the departure_delay
     4. Set data expiry to 12 hours (configurable via environment variable)
     """
-    logfire.info("Connecting to Upstash Redis...")
+    logfire.info("Connecting to MongoDB...")
     start_time = time.time()
     
-    # Connection pool settings
     try:
-        # Create Redis client with SSL - Modified approach for Upstash compatibility
-        r = redis.Redis(
-            host=UPSTASH_ENDPOINT,
-            port=UPSTASH_PORT,
-            password=UPSTASH_PASSWORD,
-            decode_responses=True,
-            ssl=True,
-            socket_timeout=5.0,
-            socket_connect_timeout=5.0,
-            retry_on_timeout=True,
-            max_connections=5,
-        )
+        # Create MongoDB client
+        client = pymongo.MongoClient(MONGO_URI)
+        db = client[MONGO_DB_NAME]
+        collection = db[MONGO_COLLECTION]
         
         # Test the connection
-        ping_response = r.ping()
-        if ping_response:
-            logfire.info(f"Successfully connected to Upstash Redis at {UPSTASH_ENDPOINT}")
-            logfire.info(f"Current database size: {r.dbsize()} keys")
-        else:
-            logfire.warning("Warning: Upstash Redis connection established but ping test failed")
-    except redis.ConnectionError as e:
-        logfire.error(f"Error connecting to Upstash Redis: {e}")
-        raise
-    except Exception as e:
-        logfire.error(f"Unexpected error during Upstash Redis connection: {type(e).__name__}: {e}")
-        raise
-    
-    # Set expiry time (12 hours in seconds by default, configurable via environment variable)
-    expiry_seconds = int(timedelta(hours=REDIS_EXPIRY_HOURS).total_seconds())
-    
-    # Create lists to store keys, values, and expiry operations for batch processing
-    logfire.info(f"Processing {len(response)} trips for batch upload...")
-    
-    # First, fetch all existing keys in one batch operation
-    trip_keys = [f"gtfs:{trip['trip_id']}:{trip['route_id']}" for trip in response]
-    
-    try:
-        # Create pipeline for bulk fetching existing keys
-        pipe = r.pipeline(transaction=False)
-        for key in trip_keys:
-            pipe.exists(key)
+        server_info = client.server_info()
+        logfire.info(f"Successfully connected to MongoDB")
+        logfire.info(f"Current collection size: {collection.count_documents({})} documents")
         
-        # Execute the pipeline and get results
-        exist_results = pipe.execute()
+        # Ensure TTL index exists for automatic expiry
+        # This will create an index on created_at field that will expire documents after REDIS_EXPIRY_HOURS
+        expiry_seconds = int(timedelta(hours=REDIS_EXPIRY_HOURS).total_seconds())
+        collection.create_index("created_at", expireAfterSeconds=expiry_seconds)
         
-        # Create a dictionary mapping keys to their exist status
-        key_exists = {key: exists for key, exists in zip(trip_keys, exist_results)}
+        logfire.info(f"Processing {len(response)} trips for batch upload...")
         
-        # Fetch all existing data that needs updating in bulk
-        pipe = r.pipeline(transaction=False)
-        
-        # Count how many existing keys we need to fetch
-        existing_keys_count = sum(1 for exists in key_exists.values() if exists)
-        logfire.info(f"Found {existing_keys_count} existing keys that need to be updated")
-        
-        for key, exists in key_exists.items():
-            if exists:
-                pipe.get(key)
-        
-        # Execute the pipeline to get all existing data
-        existing_data_results = pipe.execute()
-        
-        # Performance optimization - pre-allocate the pipeline size
-        # based on expected operations (2 ops per trip - set and expire)
-        pipeline_size = len(response) * 2
-        updates_pipe = r.pipeline(transaction=False)
-        
-        existing_data_index = 0
+        # Performance metrics
         update_count = 0
         create_count = 0
         
-        # Process all trips and prepare batch operations
-        for i, trip in enumerate(response):
-            # Periodically execute the pipeline to avoid large memory usage
-            # Flush every 1000 operations (500 trips)
-            if i > 0 and i % 500 == 0 and updates_pipe:
-                logfire.info(f"Executing intermediate batch at trip {i}...")
-                updates_pipe.execute()
-                updates_pipe = r.pipeline(transaction=False)
-            
+        # Using bulk operations for better performance
+        bulk_operations = []
+        
+        # Current time for TTL index - use timezone-aware datetime object
+        try:
+            # For Python 3.11+ which has datetime.UTC
+            current_time = datetime.now(datetime.UTC)
+        except AttributeError:
+            # Fallback for older Python versions
+            from datetime import timezone
+            current_time = datetime.now(timezone.utc)
+        
+        # Process all trips and prepare bulk operations
+        for trip in response:
             trip_id = trip['trip_id']
             route_id = trip['route_id']
-            key = f"gtfs:{trip_id}:{route_id}"
             
-            if key_exists[key]:
+            # Create a composite key for trip_id and route_id
+            filter_query = {
+                "trip_id": trip_id,
+                "route_id": route_id
+            }
+            
+            # Check if the document exists
+            existing_doc = collection.find_one(filter_query)
+            
+            if existing_doc:
                 # Update existing entry
-                existing_data = json.loads(existing_data_results[existing_data_index])
-                existing_data_index += 1
+                update_operations = []
                 
-                existing_stops = {f"{stop['stop_id']}:{stop['stop_sequence']}": stop for stop in existing_data['stops']}
+                # Convert existing stops to a dictionary for easier lookup
+                existing_stops = {f"{stop['stop_id']}:{stop['stop_sequence']}": stop 
+                                 for stop in existing_doc.get('stops', [])}
                 
                 # Update existing stops and add new ones
                 for stop in trip['stops']:
@@ -159,56 +124,76 @@ def upload_gtfs_stops_to_redis_task(response):
                         existing_stops[stop_key] = stop
                 
                 # Convert back to list format
-                updated_data = {
-                    'trip_id': trip_id,
-                    'route_id': route_id,
-                    'stops': list(existing_stops.values())
-                }
+                updated_stops = list(existing_stops.values())
                 
-                # Add to pipeline - set updated data and expiry
-                updates_pipe.set(key, json.dumps(updated_data))
-                updates_pipe.expire(key, expiry_seconds)
+                # Create update operation
+                update_operation = pymongo.UpdateOne(
+                    filter_query,
+                    {
+                        "$set": {
+                            "stops": updated_stops,
+                            "created_at": current_time,  # Update the TTL field
+                        }
+                    }
+                )
+                
+                bulk_operations.append(update_operation)
                 update_count += 1
                 
             else:
                 # Create new entry
-                updates_pipe.set(key, json.dumps(trip))
-                updates_pipe.expire(key, expiry_seconds)
+                trip["created_at"] = current_time  # Add TTL field
+                
+                # Create insert operation
+                insert_operation = pymongo.InsertOne(trip)
+                
+                bulk_operations.append(insert_operation)
                 create_count += 1
+            
+            # Execute bulk operations in chunks to avoid large memory usage
+            if len(bulk_operations) >= 500:
+                logfire.info(f"Executing intermediate batch of {len(bulk_operations)} operations...")
+                result = collection.bulk_write(bulk_operations, ordered=False)
+                bulk_operations = []
         
-        # Execute all remaining updates in a single batch
-        if updates_pipe:
-            logfire.info(f"Executing final batch operations: {update_count} updates and {create_count} new entries...")
-            updates_pipe.execute()
+        # Execute any remaining bulk operations
+        if bulk_operations:
+            logfire.info(f"Executing final batch of {len(bulk_operations)} operations...")
+            result = collection.bulk_write(bulk_operations, ordered=False)
         
         end_time = time.time()
         elapsed_time = end_time - start_time
         ops_per_second = len(response) / elapsed_time if elapsed_time > 0 else 0
         
-        ##log results
-        logfire.info(f"✅ Successfully processed {len(response)} trips to Upstash Redis using batch operations")
+        # Log results
+        logfire.info(f"✅ Successfully processed {len(response)} trips to MongoDB using bulk operations")
         logfire.info(f"✅ Updated {update_count} existing entries")
         logfire.info(f"✅ Created {create_count} new entries")
-        logfire.info(f"All keys set to expire in {expiry_seconds} seconds ({REDIS_EXPIRY_HOURS} hours)")
+        logfire.info(f"All documents set to expire in {expiry_seconds} seconds ({REDIS_EXPIRY_HOURS} hours)")
         logfire.info(f"Total time: {elapsed_time:.2f} seconds ({ops_per_second:.2f} operations/second)")
         
-    except redis.RedisError as e:
-        logfire.error(f"Upstash Redis error during batch operation: {e}")
+    except pymongo.errors.ConnectionFailure as e:
+        logfire.error(f"MongoDB connection error: {e}")
+        raise
+    except pymongo.errors.PyMongoError as e:
+        logfire.error(f"MongoDB error during operation: {e}")
         raise
     except Exception as e:
-        logfire.error(f"Unexpected error during batch operation: {type(e).__name__}: {e}")
+        logfire.error(f"Unexpected error during MongoDB operation: {type(e).__name__}: {e}")
         raise
     finally:
-        # No need to close the connection pool now as we're using a direct connection
-        logfire.info("Upstash Redis connection closed successfully")
+        # Close the MongoDB connection
+        if 'client' in locals():
+            client.close()
+            logfire.info("MongoDB connection closed successfully")
 
 
 async def fetch_gtfs_stops_flow():
-    """Main ETL flow that fetches GTFS data and uploads it to Redis"""
+    """Main ETL flow that fetches GTFS data and uploads it to MongoDB"""
     logfire.info("Starting GTFS etl process")
     try:
         response = await fetch_gtfs_stops_task()
-        upload_gtfs_stops_to_redis_task(response)
+        upload_gtfs_stops_to_mongodb_task(response)
         logfire.info("GTFS stops flow completed successfully")
         return True
     except Exception as e:

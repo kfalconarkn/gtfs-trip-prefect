@@ -7,7 +7,7 @@ to redis cloud using prefect cloud deployment.
 
 ## Tech stack
 - Python
-- Redis
+- Mongo DB (pymongo)
 
 
 
@@ -35,30 +35,19 @@ this is an example of the required output structure:
         ]
     },
 
-## Upstash (Redis)
-Data (json structure) is to be uploaded to upstach redis db.
+## Mongo DB
+Data (json structure) is to be uploaded to mongo db
 
 Upload rules:
-1. Each combo of trip_id and route_id is unique and child stops data should be appeneded and or updated to that trip_id/route_id. when the gtfs api data is fetched and the combo of stop_id, stop dequence is not present in the redis db, then it should be appeneded to that trip_id. If the stop_id/stop equence exists then the departure_delay data for that stop_id should be updated. 
-2. The data expirary that is uploaded should be 12 hours. 
+1. Each combo of trip_id and route_id is unique and child stops data should be appeneded and or updated to that trip_id/route_id. when the gtfs api data is fetched and the combo of stop_id, stop dequence is not present in the mongo db, then it should be appeneded to that trip_id. If the stop_id/stop equence exists then the departure_delay data for that stop_id should be updated.
 
-Connection creditials:
-Enpoint: concise-sculpin-61825.upstash.io
-port: 6379
+2. The data expirary that is uploaded should be 12 hours.
 
-example client connection: 
+Databse name: gtfs_data
+collection to use: trips_stops
 
-```python
-import redis
-
-r = redis.Redis(
-  host='concise-sculpin-61825.upstash.io',
-  port=6379,
-  password='********',
-  ssl=True
-)
-```
-
+Connection string exmaple:
+mongodb+srv://<db_username>:<db_password>@cluster0.dsh19.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 
 
 ## Logging
@@ -69,7 +58,7 @@ Pydantic lofire will be used to send logging information to the platform for obs
 
 1. Data is downloaded from GTFS API
 2. Data is transformed to required format
-3. Data is uploaded/appened to redis db.
+3. Data is uploaded/appened to mongo db
 
 ## Deployment
 Python script will be deployed to github actions. yml file will specify the deployment config
