@@ -16,10 +16,9 @@ load_dotenv()
 # Get environment variables with no default values
 # This ensures we don't expose sensitive information in the code
 LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
-REDIS_HOST = os.environ.get('REDIS_HOST')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', '11529'))  # Default port as fallback
-REDIS_USERNAME = os.environ.get('REDIS_USERNAME')
-REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
+UPSTASH_ENDPOINT = os.environ.get('UPSTASH_ENDPOINT')
+UPSTASH_PORT = int(os.environ.get('UPSTASH_PORT', '6379'))  # Default port as fallback
+UPSTASH_PASSWORD = os.environ.get('UPSTASH_PASSWORD')
 REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
 
 # Configure logfire
@@ -29,7 +28,7 @@ else:
     logfire.info("LOGFIRE_TOKEN not set, logging may be limited")
 
 # Validate required environment variables
-required_vars = ['REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD']
+required_vars = ['UPSTASH_ENDPOINT', 'UPSTASH_PASSWORD']
 missing_vars = [var for var in required_vars if not os.environ.get(var)]
 if missing_vars:
     logfire.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -51,18 +50,17 @@ def upload_gtfs_stops_to_redis_task(response):
     3. If stop_id/stop_sequence exists, update the departure_delay
     4. Set data expiry to 12 hours (configurable via environment variable)
     """
-    logfire.info("Connecting to Redis...")
+    logfire.info("Connecting to Upstash Redis...")
     start_time = time.time()
     
     # Connection pool settings
     try:
             
         pool = redis.ConnectionPool(
-            host=REDIS_HOST,
-            port=REDIS_PORT,
+            host=UPSTASH_ENDPOINT,
+            port=UPSTASH_PORT,
             decode_responses=True,
-            username=REDIS_USERNAME,
-            password=REDIS_PASSWORD,
+            password=UPSTASH_PASSWORD,
             max_connections=5,  # Adjust based on expected concurrency
             health_check_interval=30,  # Check connection health every 30 seconds
             socket_timeout=5.0,  # Add timeout for connection attempts
@@ -74,15 +72,15 @@ def upload_gtfs_stops_to_redis_task(response):
         r = redis.Redis(connection_pool=pool)
         ping_response = r.ping()
         if ping_response:
-            logfire.info(f"Successfully connected to Redis at {r.connection_pool.connection_kwargs['host']}")
+            logfire.info(f"Successfully connected to Upstash Redis at {r.connection_pool.connection_kwargs['host']}")
             logfire.info(f"Current database size: {r.dbsize()} keys")
         else:
-            logfire.warning("Warning: Redis connection established but ping test failed")
+            logfire.warning("Warning: Upstash Redis connection established but ping test failed")
     except redis.ConnectionError as e:
-        logfire.error(f"Error connecting to Redis: {e}")
+        logfire.error(f"Error connecting to Upstash Redis: {e}")
         raise
     except Exception as e:
-        logfire.error(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
+        logfire.error(f"Unexpected error during Upstash Redis connection: {type(e).__name__}: {e}")
         raise
     
     # Set expiry time (12 hours in seconds by default, configurable via environment variable)
@@ -188,14 +186,14 @@ def upload_gtfs_stops_to_redis_task(response):
         elapsed_time = end_time - start_time
         ops_per_second = len(response) / elapsed_time if elapsed_time > 0 else 0
         
-        logfire.info(f"✅ Successfully processed {len(response)} trips to Redis using batch operations")
+        logfire.info(f"✅ Successfully processed {len(response)} trips to Upstash Redis using batch operations")
         logfire.info(f"✅ Updated {update_count} existing entries")
         logfire.info(f"✅ Created {create_count} new entries")
         logfire.info(f"All keys set to expire in {expiry_seconds} seconds ({REDIS_EXPIRY_HOURS} hours)")
         logfire.info(f"Total time: {elapsed_time:.2f} seconds ({ops_per_second:.2f} operations/second)")
         
     except redis.RedisError as e:
-        logfire.error(f"Redis error during batch operation: {e}")
+        logfire.error(f"Upstash Redis error during batch operation: {e}")
         raise
     except Exception as e:
         logfire.error(f"Unexpected error during batch operation: {type(e).__name__}: {e}")
@@ -204,14 +202,14 @@ def upload_gtfs_stops_to_redis_task(response):
         # Clean up the connection pool if needed
         try:
             pool.close()
-            logfire.info("Redis connection pool closed successfully")
+            logfire.info("Upstash Redis connection pool closed successfully")
         except Exception as e:
-            logfire.error(f"Error closing Redis connection pool: {e}")
+            logfire.error(f"Error closing Upstash Redis connection pool: {e}")
 
 
 async def fetch_gtfs_stops_flow():
     """Main ETL flow that fetches GTFS data and uploads it to Redis"""
-    logfire.info("Starting GTFS stops flow")
+    logfire.info("Starting GTFS etl process")
     try:
         response = await fetch_gtfs_stops_task()
         upload_gtfs_stops_to_redis_task(response)
@@ -225,7 +223,6 @@ async def fetch_gtfs_stops_flow():
 async def main():
     """Main function to run the ETL process once"""
     start_time = time.time()
-    logfire.info("Starting GTFS stops ETL process")
     
     try:
         success = await fetch_gtfs_stops_flow()

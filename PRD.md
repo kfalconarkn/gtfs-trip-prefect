@@ -35,27 +35,17 @@ this is an example of the required output structure:
         ]
     },
 
-## Redis 
-JSON structure is uploaded to redis.
-Upload rules:
+## Upstash (Redis)
+Data (json structure) is to be uploaded to upstach redis db.
 
+Upload rules:
 1. Each combo of trip_id and route_id is unique and child stops data should be appeneded and or updated to that trip_id/route_id. when the gtfs api data is fetched and the combo of stop_id, stop dequence is not present in the redis db, then it should be appeneded to that trip_id. If the stop_id/stop equence exists then the departure_delay data for that stop_id should be updated. 
 2. The data expirary that is uploaded should be 12 hours. 
 
-Connection exmaple:
+Connection creditials:
+Enpoint: concise-sculpin-61825.upstash.io
+port: 6379
 
-"""Basic connection example.
-"""
-
-import redis
-
-r = redis.Redis(
-    host='redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com',
-    port=11529,
-    decode_responses=True,
-    username="default",
-    password="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU",
-)
 
 ## Logging
 
@@ -69,4 +59,4 @@ Pydantic lofire will be used to send logging information to the platform for obs
 
 ## Deployment
 Python script will be deployed to github actions. yml file will specify the deployment config
-the github action s will run every 1 min. dependencies will be defined using the requirements.txt file in the root dir. 
+the github action s will run every 1 min via a google schedule http call. dependencies will be defined using the requirements.txt file in the root dir. 
