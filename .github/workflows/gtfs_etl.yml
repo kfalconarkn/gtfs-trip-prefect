@@ -67,9 +67,9 @@ jobs:
         env:
           LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT || '6379' }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          REDIS_DB: ${{ secrets.REDIS_DB || '0' }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
           REDIS_EXPIRY_HOURS: '12'
           DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
           SCHEDULER_JOB_ID: ${{ github.event.inputs.scheduler_job_id || 'default-scheduler' }}

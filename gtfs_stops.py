@@ -17,9 +17,9 @@ load_dotenv()
 # This ensures we don't expose sensitive information in the code
 LOGFIRE_TOKEN = os.environ.get('LOGFIRE_TOKEN')
 REDIS_HOST = os.environ.get('REDIS_HOST')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 11529))
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
-REDIS_DB = int(os.environ.get('REDIS_DB', 0))
+REDIS_USERNAME = os.environ.get('REDIS_USERNAME')
 REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
 
 # Configure logfire
@@ -59,8 +59,8 @@ def upload_gtfs_stops_to_redis_task(response):
         r = redis.Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
+            username=REDIS_USERNAME,
             password=REDIS_PASSWORD,
-            db=REDIS_DB,
             decode_responses=True,
             socket_timeout=10.0,
             socket_connect_timeout=10.0,
