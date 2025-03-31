@@ -35,19 +35,17 @@ this is an example of the required output structure:
         ]
     },
 
-## Mongo DB
-Data (json structure) is to be uploaded to mongo db
+## Redis db 
+Details for connection to redis (use Redis python sdk). connection should be optimsed for 5 max number of connections for use on render web service.
 
-Upload rules:
-1. Each combo of trip_id and route_id is unique and child stops data should be appeneded and or updated to that trip_id/route_id. when the gtfs api data is fetched and the combo of stop_id, stop dequence is not present in the mongo db, then it should be appeneded to that trip_id. If the stop_id/stop equence exists then the departure_delay data for that stop_id should be updated.
+r = redis.Redis(
+    host='redis-11529.c323.us-east-1-2.ec2.redns.redis-cloud.com',
+    port=11529,
+    decode_responses=True,
+    username="default",
+    password="wgk1Spj42pld4hm7xKbXHyhqfyd1NhEU",
+)
 
-2. The data expirary that is uploaded should be 12 hours.
-
-Databse name: gtfs_data
-collection to use: trips_stops
-
-Connection string exmaple:
-mongodb+srv://<db_username>:<db_password>@cluster0.dsh19.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
 
 
 ## Logging
@@ -58,7 +56,7 @@ Pydantic lofire will be used to send logging information to the platform for obs
 
 1. Data is downloaded from GTFS API
 2. Data is transformed to required format
-3. Data is uploaded/appened to mongo db
+3. Data is uploaded/appened to reddis db
 
 ## Deployment
 Python script will be deployed to github actions. yml file will specify the deployment config

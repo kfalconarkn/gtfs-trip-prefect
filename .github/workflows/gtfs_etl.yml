@@ -66,10 +66,10 @@ jobs:
         id: run-etl
         env:
           LOGFIRE_TOKEN: ${{ secrets.LOGFIRE_TOKEN }}
-          MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
-          MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
-          MONGO_DB_NAME: ${{ secrets.MONGO_DB_NAME || 'gtfs_data' }}
-          MONGO_COLLECTION: ${{ secrets.MONGO_COLLECTION || 'trips_stops' }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT || '6379' }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: ${{ secrets.REDIS_DB || '0' }}
           REDIS_EXPIRY_HOURS: '12'
           DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
           SCHEDULER_JOB_ID: ${{ github.event.inputs.scheduler_job_id || 'default-scheduler' }}

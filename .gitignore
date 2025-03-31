@@ -44,3 +44,6 @@ logs/
 
 # Local development
 .python-version
+
+# Project Requirements Document
+PRD.md
