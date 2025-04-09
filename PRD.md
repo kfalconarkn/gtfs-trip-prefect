@@ -7,7 +7,7 @@ to redis cloud using prefect cloud deployment.
 
 ## Tech stack
 - Python
-- Mongo DB (pymongo)
+- Redis cloud
 
 
 

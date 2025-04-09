@@ -20,7 +20,7 @@ REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = int(os.environ.get('REDIS_PORT', 11529))
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
 REDIS_USERNAME = os.environ.get('REDIS_USERNAME')
-REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '12'))  # Default expiry as fallback
+REDIS_EXPIRY_HOURS = int(os.environ.get('REDIS_EXPIRY_HOURS', '18'))  # Default expiry as fallback
 
 # Configure logfire
 if LOGFIRE_TOKEN:
@@ -84,7 +84,7 @@ def upload_gtfs_stops_to_redis_task(response):
         logfire.error(f"Unexpected error during Redis connection: {type(e).__name__}: {e}")
         raise
     
-    # Set expiry time (12 hours in seconds by default, configurable via environment variable)
+    # Set expiry time (18 hours in seconds by default, configurable via environment variable)
     expiry_seconds = int(timedelta(hours=REDIS_EXPIRY_HOURS).total_seconds())
     
     # Create lists to store keys, values, and expiry operations for batch processing

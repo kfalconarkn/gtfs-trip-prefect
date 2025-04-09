@@ -129,32 +129,74 @@ async def fetch_and_process_trip_updates():
     
     logfire.info(f"Grouped data into {len(transformed_data)} unique trip_id/route_id combinations")
     
-    # Filter to include only the minimum stop sequence and the next one for each trip
-    logfire.info("Filtering to include only min stop sequence and next one")
-    for key in transformed_data:
+    # Get current time in Brisbane timezone
+    brisbane_tz = pytz.timezone('Australia/Brisbane')
+    now_brisbane = datetime.now(brisbane_tz)
+    logfire.info(f"Current Brisbane time for filtering: {now_brisbane.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
+    # Filter to include only the minimum stop sequence and the next one, AND filter by current time
+    logfire.info("Filtering stops by sequence and departure time...")
+    final_filtered_data = {}
+    stops_removed_by_time = 0
+    
+    for key, trip_data in transformed_data.items():
         trip_id, route_id = key
-        stops = transformed_data[key]['stops']
+        stops = trip_data['stops']
         
         # Sort stops by stop_sequence
         stops.sort(key=lambda x: x['stop_sequence'])
         
+        sequence_filtered_stops = []
         # Keep only the minimum stop sequence and the next one (if available)
         if len(stops) > 0:
             min_sequence = stops[0]['stop_sequence']
-            filtered_stops = [stops[0]]
+            sequence_filtered_stops.append(stops[0])
             
             # Add the next stop sequence if available
             for stop in stops[1:]:
                 if stop['stop_sequence'] == min_sequence + 1:
-                    filtered_stops.append(stop)
+                    sequence_filtered_stops.append(stop)
                     break
-            
-            transformed_data[key]['stops'] = filtered_stops
+        
+        # Filter by departure time
+        time_filtered_stops = []
+        for stop in sequence_filtered_stops:
+            if stop['departure_time']:
+                # Parse departure time string back to datetime object
+                # Assuming the string format is '%Y-%m-%d %H:%M:%S' and represents Brisbane time
+                try:
+                    departure_dt_str = stop['departure_time']
+                    # Naive datetime object representing Brisbane time
+                    departure_dt_naive = datetime.strptime(departure_dt_str, '%Y-%m-%d %H:%M:%S')
+                    # Localize it to Brisbane timezone
+                    departure_dt_aware = brisbane_tz.localize(departure_dt_naive) 
+                    
+                    if departure_dt_aware <= now_brisbane:
+                        time_filtered_stops.append(stop)
+                    else:
+                        stops_removed_by_time += 1
+                except ValueError as e:
+                    logfire.error(f"Error parsing departure time '{stop['departure_time']}' for trip {trip_id}, stop {stop['stop_id']}: {e}")
+                    # Optionally decide whether to keep/discard stops with unparseable times
+            else:
+                 # Handle cases where departure_time is None if necessary, e.g., keep them or discard them
+                 # Currently, they are implicitly discarded by the check `if stop['departure_time']:`
+                 pass 
+
+        # Only keep the trip if it still has stops after time filtering
+        if time_filtered_stops:
+            final_filtered_data[key] = {
+                'trip_id': trip_id,
+                'route_id': route_id,
+                'stops': time_filtered_stops
+            }
+
+    logfire.info(f"Removed {stops_removed_by_time} stops due to future departure times.")
     
     # Convert the dictionary to a list
-    result = list(transformed_data.values())
+    result = list(final_filtered_data.values())
     
-    logfire.info(f"Processing complete: {len(result)} trips with filtered stops")
+    logfire.info(f"Processing complete: {len(result)} trips remaining after all filters")
     return result
 
 
