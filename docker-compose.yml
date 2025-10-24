@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  gtfs-etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gtfs-trip-etl
+    restart: unless-stopped
+    environment:
+      # Required environment variables
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT:-11529}
+      - REDIS_USERNAME=${REDIS_USERNAME}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_EXPIRY_HOURS=${REDIS_EXPIRY_HOURS:-18}
+      # Optional: Configure how often the ETL runs (in seconds)
+      # Default is 60 seconds (1 minute)
+      - RUN_INTERVAL_SECONDS=${RUN_INTERVAL_SECONDS:-60}
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
